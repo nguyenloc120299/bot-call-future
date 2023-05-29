@@ -54,7 +54,7 @@ function canCallAgain(symbol) {
 function readSLTPFromFile() {
   if (fs.existsSync("sltp.json")) {
     const data = fs.readFileSync("sltp.json", "utf-8");
-    const { slNumber, tpNumber } = JSON.parse(data);
+    const { slNumber, tpNumber } = JSON.parse(data );
     return { slNumber, tpNumber };
   }
   return { slNumber: 0, tpNumber: 0 };
