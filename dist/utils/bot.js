@@ -17,14 +17,25 @@ const handlers_1 = require("./handlers");
 const config_1 = require("../config");
 const node_telegram_bot_api_1 = __importDefault(require("node-telegram-bot-api"));
 const envs_1 = require("../config/envs");
+const fs_1 = __importDefault(require("fs"));
 const exchange = new ccxt_1.default.binanceusdm({
     enableRateLimit: true,
     options: {
-        defaultType: 'future',
+        defaultType: "future",
     },
 });
 const bot = new node_telegram_bot_api_1.default(envs_1.envsConfig.token_tele, { polling: true });
-const pairState = {}; // State lưu trạng thái
+let pairState = {}; // State lưu trạng thái
+// Load pairState from file if it exists
+if (fs_1.default.existsSync("pairState.json")) {
+    const pairStateData = fs_1.default.readFileSync("pairState.json", "utf-8");
+    pairState = JSON.parse(pairStateData);
+}
+// Function to save pairState to file
+function savePairStateToFile() {
+    const pairStateData = JSON.stringify(pairState);
+    fs_1.default.writeFileSync("pairState.json", pairStateData, "utf-8");
+}
 // Function để xử lý khi SL/TP được kích hoạt
 function handleSLTPTriggers(symbol, result) {
     return __awaiter(this, void 0, void 0, function* () {
@@ -44,6 +55,7 @@ function handleSLTPTriggers(symbol, result) {
             bot.sendMessage(envs_1.envsConfig.chat_id, message);
             // Reset trạng thái của cặp giao dịch
             delete pairState[symbol];
+            savePairStateToFile();
         }
     });
 }
@@ -56,9 +68,9 @@ function runTradingStrategy() {
                 const symbol = market.symbol;
                 // const baseCurrency = market.base;
                 const quoteCurrency = market.quote;
-                const timeframe = '1h'; // Khung thời gian H1
+                const timeframe = "1h"; // Khung thời gian H1
                 // Kiểm tra cặp giao dịch có tiền tệ là USDT
-                if (quoteCurrency !== 'USDT') {
+                if (quoteCurrency !== "USDT") {
                     continue; // Bỏ qua cặp giao dịch không liên quan đến USDT
                 }
                 // Lấy dữ liệu giá cả từ sàn giao dịch cho từng cặp giao dịch (coin)
@@ -72,32 +84,38 @@ function runTradingStrategy() {
                 const lastClose = lastCandle[4]; // Giá đóng cửa gần nhất
                 const upperBand = bollingerBands.upperBand[bollingerBands.upperBand.length - 1];
                 const lowerBand = bollingerBands.lowerBand[bollingerBands.lowerBand.length - 1];
-                /// Tính toán RSI 
-                const closePrices = candles.map(candle => candle[4]); // Mảng giá đóng cửa
+                /// Tính toán RSI
+                const closePrices = candles.map((candle) => candle[4]); // Mảng giá đóng cửa
                 const rsiValues = (0, handlers_1.calculateRSI)(closePrices, config_1.initCaculate.rsiPeriod);
                 const lastRSI = rsiValues[rsiValues.length - 1];
+                // Tính toán MACD
+                const macdValues = (0, handlers_1.calculateMACD)(candles, config_1.initCaculate.macdShortPeriod, config_1.initCaculate.macdLongPeriod, config_1.initCaculate.macdSignalPeriod);
+                const lastMACD = macdValues[macdValues.length - 1];
                 if (pairState[symbol]) {
                     const { state, sl, tp } = pairState[symbol];
                     const lastPrice = lastClose;
-                    if (state === 'long' && (lastPrice <= sl || lastPrice >= tp)) {
+                    if (state === "long" && (lastPrice <= sl || lastPrice >= tp)) {
                         const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit 😏";
                         handleSLTPTriggers(symbol, result);
                     }
-                    else if (state === 'short' && (lastPrice >= sl || lastPrice <= tp)) {
-                        const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit 😏";
+                    else if (state === "short" && (lastPrice >= sl || lastPrice <= tp)) {
+                        const result = lastPrice >= sl ? "Stoploss ❌" : "Take Profit 😏";
                         handleSLTPTriggers(symbol, result);
                     }
                 }
                 else {
-                    if (lastClose > upperBand && lastRSI > 70) {
+                    if (lastClose > upperBand &&
+                        lastRSI > 70 &&
+                        lastMACD.histogram > 0 &&
+                        lastMACD.macd > lastMACD.signal) {
                         const entryPrice = lastClose;
                         const { stopLoss, takeProfit } = (0, handlers_1.calculateShortSLTP)(entryPrice);
                         pairState[symbol] = {
-                            state: 'short',
+                            state: "short",
                             entry: entryPrice,
                             sl: stopLoss,
                             tp: takeProfit,
-                            time: new Date()
+                            time: new Date(),
                         };
                         const message = `
                         🚀 Điểm short (bán) giao dịch ${symbol}
@@ -115,15 +133,18 @@ function runTradingStrategy() {
                         console.log(`Stop Loss: ${stopLoss}`);
                         console.log(`Take Profit: ${takeProfit}`);
                     }
-                    else if (lastClose < lowerBand && lastRSI < 30) {
+                    else if (lastClose < lowerBand &&
+                        lastRSI < 30 &&
+                        lastMACD.histogram < 0 &&
+                        lastMACD.macd < lastMACD.signal) {
                         const entryPrice = lastClose;
                         const { stopLoss, takeProfit } = (0, handlers_1.calculateLongSLTP)(entryPrice);
                         pairState[symbol] = {
-                            state: 'long',
+                            state: "long",
                             entry: entryPrice,
                             sl: stopLoss,
                             tp: takeProfit,
-                            time: new Date()
+                            time: new Date(),
                         };
                         const message = `
                         🚀 Điểm long (mua) giao dịch ${symbol}
@@ -143,6 +164,7 @@ function runTradingStrategy() {
                     }
                 }
             }
+            savePairStateToFile();
         }
         catch (error) {
             console.log("có lỗi xảy ra", error);
@@ -155,7 +177,7 @@ function runOnce() {
             yield runTradingStrategy();
         }
         catch (error) {
-            console.error('Đã xảy ra lỗi:', error);
+            console.error("Đã xảy ra lỗi:", error);
         }
     });
 }

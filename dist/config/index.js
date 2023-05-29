@@ -5,6 +5,9 @@ exports.initCaculate = {
     rsiPeriod: 20,
     pollingerBandPeriod: 50,
     stdDevMultiplier: 2,
+    macdShortPeriod: 12,
+    macdLongPeriod: 26,
+    macdSignalPeriod: 9
 };
 // Số ngày trong chu kỳ tính toán
 exports.riskPercentage = 0.02; // Tỷ lệ rủi ro 4% (có thể điều chỉnh)

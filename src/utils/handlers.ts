@@ -102,10 +102,62 @@ function calculateShortSLTP(entryPrice) {
     return { stopLoss, takeProfit };
 }
 
-export {
-    calculateStandardDeviation,
-    calculateBollingerBands,
-    calculateRSI,
-    calculateLongSLTP,
-    calculateShortSLTP
+function calculateMACD(candles, shortPeriod, longPeriod, signalPeriod) {
+  const closePrices = candles.map((candle) => candle[4]); // Array of closing prices
+  const macdValues = [];
+
+  // Calculate the short-term EMA
+  const shortEMA = calculateEMA(closePrices, shortPeriod);
+
+  // Calculate the long-term EMA
+  const longEMA = calculateEMA(closePrices, longPeriod);
+
+  // Calculate the MACD line
+  const macdLine = shortEMA.map(
+    (shortEMAValue, index) => shortEMAValue - longEMA[index]
+  );
+
+  // Calculate the signal line (trigger line)
+  const signalLine = calculateEMA(macdLine, signalPeriod);
+
+  // Calculate the MACD histogram
+  const histogram = macdLine.map(
+    (macdValue, index) => macdValue - signalLine[index]
+  );
+
+  for (let i = 0; i < macdLine.length; i++) {
+    macdValues.push({
+      macd: macdLine[i],
+      signal: signalLine[i],
+      histogram: histogram[i],
+    });
+  }
+
+  return macdValues;
 }
+
+// Function to calculate the Exponential Moving Average (EMA)
+function calculateEMA(values, period) {
+  const ema = [];
+  const multiplier = 2 / (period + 1);
+  let emaValue = values[0];
+
+  ema.push(emaValue);
+
+  for (let i = 1; i < values.length; i++) {
+    emaValue = (values[i] - emaValue) * multiplier + emaValue;
+    ema.push(emaValue);
+  }
+
+  return ema;
+}
+
+
+export {
+  calculateStandardDeviation,
+  calculateBollingerBands,
+  calculateRSI,
+  calculateLongSLTP,
+  calculateShortSLTP,
+  calculateMACD,
+};

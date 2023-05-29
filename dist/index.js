@@ -54,5 +54,5 @@ app.use(body_parser_1.default.urlencoded({ extended: true }));
 const port = 3000;
 app.listen(envs_1.envsConfig.PORT, () => __awaiter(void 0, void 0, void 0, function* () {
     console.log(`Server is listening on port ${port}`);
-    setInterval(bot_1.default, 60000);
+    setInterval(bot_1.default, 60000 * 2);
 }));
