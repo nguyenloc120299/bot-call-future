@@ -36,26 +36,67 @@ function savePairStateToFile() {
     const pairStateData = JSON.stringify(pairState);
     fs_1.default.writeFileSync("pairState.json", pairStateData, "utf-8");
 }
+function saveSLTPToFile(slNumber, tpNumber) {
+    const data = JSON.stringify({ slNumber, tpNumber });
+    fs_1.default.writeFileSync("sltp.json", data, "utf-8");
+}
+function canCallAgain(symbol) {
+    if (pairState[symbol]) {
+        const { state, sl, time } = pairState[symbol];
+        const endTime = new Date();
+        const timeDiffInMilliseconds = endTime - time;
+        const hoursPassed = Math.floor(timeDiffInMilliseconds / (1000 * 60 * 60));
+        if (state === "SL" && hoursPassed >= 24) {
+            delete pairState[symbol];
+            savePairStateToFile();
+            return true;
+        }
+    }
+    return false;
+}
+function readSLTPFromFile() {
+    if (fs_1.default.existsSync("sltp.json")) {
+        const data = fs_1.default.readFileSync("sltp.json", "utf-8");
+        const { slNumber, tpNumber } = JSON.parse(data);
+        return { slNumber, tpNumber };
+    }
+    return { slNumber: 0, tpNumber: 0 };
+}
+let slNumber = 0;
+let tpNumber = 0;
 // Function để xử lý khi SL/TP được kích hoạt
+// Load SL and TP from file if it exists
+const { slNumber: savedSLNumber, tpNumber: savedTPNumber } = readSLTPFromFile();
+slNumber = savedSLNumber;
+tpNumber = savedTPNumber;
 function handleSLTPTriggers(symbol, result) {
     return __awaiter(this, void 0, void 0, function* () {
         // Kiểm tra trạng thái của cặp giao dịch
         if (pairState[symbol]) {
             const { state, entry, sl, tp, time } = pairState[symbol];
             const endTime = new Date();
-            const timeDiffInHours = (endTime - time) / 1000 / 60 / 60;
-            const days = Math.floor(timeDiffInHours / 24);
-            const hours = timeDiffInHours % 24;
+            const timeDiffInMilliseconds = endTime - time;
+            const minutes = Math.floor((timeDiffInMilliseconds / (1000 * 60)) % 60);
+            const hours = Math.floor((timeDiffInMilliseconds / (1000 * 60 * 60)) % 24);
+            const days = Math.floor(timeDiffInMilliseconds / (1000 * 60 * 60 * 24));
             console.log(`Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}`);
             console.log(`Lệnh giao dịch đã được đóng.`);
             const message = `
-                        Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}
-                        Lệnh giao dịch đã được đóng trong ${days} ngày ${hours} giờ. 👊 
+                        😏Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}
+                        Lệnh giao dịch đã được đóng trong ${days} ngày ${hours} giờ ${minutes} phút. 👊 
                     `;
             bot.sendMessage(envs_1.envsConfig.chat_id, message);
+            if (result === "Stoploss ❌") {
+                slNumber += 1;
+                pairState[symbol].state = "SL";
+                savePairStateToFile();
+            }
+            else if (result === "Take Profit ✅")
+                tpNumber += 1;
             // Reset trạng thái của cặp giao dịch
             delete pairState[symbol];
             savePairStateToFile();
+            saveSLTPToFile(slNumber, tpNumber);
         }
     });
 }
@@ -91,15 +132,19 @@ function runTradingStrategy() {
                 // Tính toán MACD
                 const macdValues = (0, handlers_1.calculateMACD)(candles, config_1.initCaculate.macdShortPeriod, config_1.initCaculate.macdLongPeriod, config_1.initCaculate.macdSignalPeriod);
                 const lastMACD = macdValues[macdValues.length - 1];
+                if (canCallAgain(symbol)) {
+                    console.log(`Token ${symbol} can be called again.`);
+                    continue;
+                }
                 if (pairState[symbol]) {
                     const { state, sl, tp } = pairState[symbol];
                     const lastPrice = lastClose;
                     if (state === "long" && (lastPrice <= sl || lastPrice >= tp)) {
-                        const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit 😏";
+                        const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit ✅";
                         handleSLTPTriggers(symbol, result);
                     }
                     else if (state === "short" && (lastPrice >= sl || lastPrice <= tp)) {
-                        const result = lastPrice >= sl ? "Stoploss ❌" : "Take Profit 😏";
+                        const result = lastPrice >= sl ? "Stoploss ❌" : "Take Profit ✅";
                         handleSLTPTriggers(symbol, result);
                     }
                 }

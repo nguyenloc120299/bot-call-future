@@ -4,6 +4,7 @@ export interface PAIR_STATE {
         entry: number;
         sl: number;
         tp: number;
-        time: any
+        time: any;
+        
     };
 }

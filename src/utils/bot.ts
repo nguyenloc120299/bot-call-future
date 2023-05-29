@@ -36,6 +36,21 @@ function saveSLTPToFile(slNumber, tpNumber) {
   const data = JSON.stringify({ slNumber, tpNumber });
   fs.writeFileSync("sltp.json", data, "utf-8");
 }
+function canCallAgain(symbol) {
+  if (pairState[symbol]) {
+    const { state, sl, time } = pairState[symbol];
+    const endTime = new Date() as any;
+    const timeDiffInMilliseconds = endTime - time;
+    const hoursPassed = Math.floor(timeDiffInMilliseconds / (1000 * 60 * 60));
+
+    if (state === "SL" && hoursPassed >= 24) {
+      delete pairState[symbol];
+      savePairStateToFile();
+      return true;
+    }
+  }
+  return false;
+}
 function readSLTPFromFile() {
   if (fs.existsSync("sltp.json")) {
     const data = fs.readFileSync("sltp.json", "utf-8");
@@ -64,12 +79,15 @@ async function handleSLTPTriggers(symbol, result) {
     console.log(`Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}`);
     console.log(`Lệnh giao dịch đã được đóng.`);
     const message = `
-                        Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}
+                        😏Lệnh đã chạm ${result} cho cặp giao dịch ${symbol}
                         Lệnh giao dịch đã được đóng trong ${days} ngày ${hours} giờ ${minutes} phút. 👊 
                     `;
     bot.sendMessage(envsConfig.chat_id, message);
-    if (result === "Stoploss ❌") slNumber += 1;
-    else if (result === "Take Profit 😏") tpNumber += 1;
+    if (result === "Stoploss ❌") {
+      slNumber += 1;
+       pairState[symbol].state = "SL";
+       savePairStateToFile();
+    } else if (result === "Take Profit ✅") tpNumber += 1;
     // Reset trạng thái của cặp giao dịch
     delete pairState[symbol];
     savePairStateToFile();
@@ -124,14 +142,18 @@ async function runTradingStrategy() {
       );
       const lastMACD = macdValues[macdValues.length - 1];
 
+      if (canCallAgain(symbol)) {
+        console.log(`Token ${symbol} can be called again.`);
+        continue;
+      }
       if (pairState[symbol]) {
         const { state, sl, tp } = pairState[symbol];
         const lastPrice = lastClose;
         if (state === "long" && (lastPrice <= sl || lastPrice >= tp)) {
-          const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit 😏";
+          const result = lastPrice <= sl ? "Stoploss ❌" : "Take Profit ✅";
           handleSLTPTriggers(symbol, result);
         } else if (state === "short" && (lastPrice >= sl || lastPrice <= tp)) {
-          const result = lastPrice >= sl ? "Stoploss ❌" : "Take Profit 😏";
+          const result = lastPrice >= sl ? "Stoploss ❌" : "Take Profit ✅";
           handleSLTPTriggers(symbol, result);
         }
       } else {
