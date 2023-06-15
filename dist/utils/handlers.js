@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.calculateMACD = exports.calculateShortSLTP = exports.calculateLongSLTP = exports.calculateRSI = exports.calculateBollingerBands = exports.calculateStandardDeviation = void 0;
+exports.calculateEMA = exports.calculateMACD = exports.calculateShortSLTP = exports.calculateLongSLTP = exports.calculateRSI = exports.calculateBollingerBands = exports.calculateStandardDeviation = void 0;
 const config_1 = require("../config");
 function calculateAverage(values) {
     const sum = values.reduce((a, b) => a + b, 0);
@@ -113,14 +113,24 @@ function calculateMACD(candles, shortPeriod, longPeriod, signalPeriod) {
 }
 exports.calculateMACD = calculateMACD;
 // Function to calculate the Exponential Moving Average (EMA)
-function calculateEMA(values, period) {
-    const ema = [];
+function calculateEMA(data, period) {
+    const emaArray = [];
     const multiplier = 2 / (period + 1);
-    let emaValue = values[0];
-    ema.push(emaValue);
-    for (let i = 1; i < values.length; i++) {
-        emaValue = (values[i] - emaValue) * multiplier + emaValue;
-        ema.push(emaValue);
+    let prevEMA = 0;
+    for (let i = 0; i < data.length; i++) {
+        const closePrice = data[i][4]; // Assuming the close price is located at index 4
+        if (i < period - 1) {
+            // For the initial period, use the simple moving average as the EMA
+            const sma = data.slice(0, i + 1).reduce((sum, val) => sum + val[4], 0) / (i + 1);
+            emaArray.push(sma);
+            prevEMA = sma;
+        }
+        else {
+            const ema = (closePrice - prevEMA) * multiplier + prevEMA;
+            emaArray.push(ema);
+            prevEMA = ema;
+        }
     }
-    return ema;
+    return emaArray;
 }
+exports.calculateEMA = calculateEMA;

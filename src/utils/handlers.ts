@@ -137,19 +137,27 @@ function calculateMACD(candles, shortPeriod, longPeriod, signalPeriod) {
 }
 
 // Function to calculate the Exponential Moving Average (EMA)
-function calculateEMA(values, period) {
-  const ema = [];
+function calculateEMA(data, period) {
+  const emaArray = [];
   const multiplier = 2 / (period + 1);
-  let emaValue = values[0];
+  let prevEMA = 0;
 
-  ema.push(emaValue);
-
-  for (let i = 1; i < values.length; i++) {
-    emaValue = (values[i] - emaValue) * multiplier + emaValue;
-    ema.push(emaValue);
+  for (let i = 0; i < data.length; i++) {
+    const closePrice = data[i][4]; // Assuming the close price is located at index 4
+    if (i < period - 1) {
+      // For the initial period, use the simple moving average as the EMA
+      const sma =
+        data.slice(0, i + 1).reduce((sum, val) => sum + val[4], 0) / (i + 1);
+      emaArray.push(sma);
+      prevEMA = sma;
+    } else {
+      const ema = (closePrice - prevEMA) * multiplier + prevEMA;
+      emaArray.push(ema);
+      prevEMA = ema;
+    }
   }
 
-  return ema;
+  return emaArray;
 }
 
 
@@ -160,4 +168,5 @@ export {
   calculateLongSLTP,
   calculateShortSLTP,
   calculateMACD,
+  calculateEMA
 };

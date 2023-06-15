@@ -46,7 +46,7 @@ function canCallAgain(symbol) {
         const endTime = new Date();
         const timeDiffInMilliseconds = endTime - time;
         const hoursPassed = Math.floor(timeDiffInMilliseconds / (1000 * 60 * 60));
-        if (state === "SL" && hoursPassed >= 24) {
+        if (state === "SL" && hoursPassed >= 4) {
             delete pairState[symbol];
             savePairStateToFile();
             return true;
@@ -132,6 +132,10 @@ function runTradingStrategy() {
                 // Tính toán MACD
                 const macdValues = (0, handlers_1.calculateMACD)(candles, config_1.initCaculate.macdShortPeriod, config_1.initCaculate.macdLongPeriod, config_1.initCaculate.macdSignalPeriod);
                 const lastMACD = macdValues[macdValues.length - 1];
+                const ema54 = (0, handlers_1.calculateEMA)(candles, 54); // Calculate EMA with period 54
+                const ema89 = (0, handlers_1.calculateEMA)(candles, 89); // Calculate EMA with period 89
+                const ema54Value = ema54[ema54.length - 1];
+                const ema89Value = ema89[ema89.length - 1];
                 if (canCallAgain(symbol)) {
                     console.log(`Token ${symbol} can be called again.`);
                     continue;
@@ -149,10 +153,14 @@ function runTradingStrategy() {
                     }
                 }
                 else {
-                    if (lastClose > upperBand &&
-                        lastRSI > 70 &&
-                        lastMACD.histogram > 0 &&
-                        lastMACD.macd > lastMACD.signal) {
+                    if (
+                    // lastClose > upperBand &&
+                    // lastRSI > 70 &&
+                    lastMACD.histogram > 0 &&
+                        lastMACD.macd > lastMACD.signal &&
+                        ema54Value > ema89Value &&
+                        lastClose > ema54Value &&
+                        lastClose > ema89Value) {
                         const entryPrice = lastClose;
                         const { stopLoss, takeProfit } = (0, handlers_1.calculateShortSLTP)(entryPrice);
                         pairState[symbol] = {
@@ -178,10 +186,14 @@ function runTradingStrategy() {
                         console.log(`Stop Loss: ${stopLoss}`);
                         console.log(`Take Profit: ${takeProfit}`);
                     }
-                    else if (lastClose < lowerBand &&
-                        lastRSI < 30 &&
-                        lastMACD.histogram < 0 &&
-                        lastMACD.macd < lastMACD.signal) {
+                    else if (
+                    // lastClose < lowerBand &&
+                    // lastRSI < 30 &&
+                    lastMACD.histogram < 0 &&
+                        lastMACD.macd < lastMACD.signal &&
+                        ema54Value < ema89Value &&
+                        lastClose < ema54Value &&
+                        lastClose < ema89Value) {
                         const entryPrice = lastClose;
                         const { stopLoss, takeProfit } = (0, handlers_1.calculateLongSLTP)(entryPrice);
                         pairState[symbol] = {

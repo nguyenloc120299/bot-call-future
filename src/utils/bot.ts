@@ -1,6 +1,7 @@
 import ccxt from "ccxt";
 import {
   calculateBollingerBands,
+  calculateEMA,
   calculateLongSLTP,
   calculateMACD,
   calculateRSI,
@@ -43,7 +44,7 @@ function canCallAgain(symbol) {
     const timeDiffInMilliseconds = endTime - time;
     const hoursPassed = Math.floor(timeDiffInMilliseconds / (1000 * 60 * 60));
 
-    if (state === "SL" && hoursPassed >= 24) {
+    if (state === "SL" && hoursPassed >= 4) {
       delete pairState[symbol];
       savePairStateToFile();
       return true;
@@ -54,7 +55,7 @@ function canCallAgain(symbol) {
 function readSLTPFromFile() {
   if (fs.existsSync("sltp.json")) {
     const data = fs.readFileSync("sltp.json", "utf-8");
-    const { slNumber, tpNumber } = JSON.parse(data );
+    const { slNumber, tpNumber } = JSON.parse(data);
     return { slNumber, tpNumber };
   }
   return { slNumber: 0, tpNumber: 0 };
@@ -85,8 +86,8 @@ async function handleSLTPTriggers(symbol, result) {
     bot.sendMessage(envsConfig.chat_id, message);
     if (result === "Stoploss ❌") {
       slNumber += 1;
-       pairState[symbol].state = "SL";
-       savePairStateToFile();
+      pairState[symbol].state = "SL";
+      savePairStateToFile();
     } else if (result === "Take Profit ✅") tpNumber += 1;
     // Reset trạng thái của cặp giao dịch
     delete pairState[symbol];
@@ -141,6 +142,11 @@ async function runTradingStrategy() {
         initCaculate.macdSignalPeriod
       );
       const lastMACD = macdValues[macdValues.length - 1];
+      const ema54 = calculateEMA(candles, 54); // Calculate EMA with period 54
+      const ema89 = calculateEMA(candles, 89); // Calculate EMA with period 89
+
+      const ema54Value = ema54[ema54.length - 1];
+      const ema89Value = ema89[ema89.length - 1];
 
       if (canCallAgain(symbol)) {
         console.log(`Token ${symbol} can be called again.`);
@@ -158,10 +164,12 @@ async function runTradingStrategy() {
         }
       } else {
         if (
-          lastClose > upperBand &&
-          lastRSI > 70 &&
-          lastMACD.histogram > 0 &&
-          lastMACD.macd > lastMACD.signal
+          (lastClose > upperBand && lastRSI > 70) ||
+          (lastMACD.histogram > 0 &&
+            lastMACD.macd > lastMACD.signal &&
+            ema54Value > ema89Value &&
+            lastClose > ema54Value &&
+            lastClose > ema89Value)
         ) {
           const entryPrice = lastClose;
           const { stopLoss, takeProfit } = calculateShortSLTP(entryPrice);
@@ -189,10 +197,12 @@ async function runTradingStrategy() {
           console.log(`Stop Loss: ${stopLoss}`);
           console.log(`Take Profit: ${takeProfit}`);
         } else if (
-          lastClose < lowerBand &&
-          lastRSI < 30 &&
-          lastMACD.histogram < 0 &&
-          lastMACD.macd < lastMACD.signal
+          (lastClose < lowerBand && lastRSI < 30) ||
+          (lastMACD.histogram < 0 &&
+            lastMACD.macd < lastMACD.signal &&
+            ema54Value < ema89Value &&
+            lastClose < ema54Value &&
+            lastClose < ema89Value)
         ) {
           const entryPrice = lastClose;
           const { stopLoss, takeProfit } = calculateLongSLTP(entryPrice);

@@ -10,5 +10,5 @@ exports.initCaculate = {
     macdSignalPeriod: 9
 };
 // Số ngày trong chu kỳ tính toán
-exports.riskPercentage = 0.02; // Tỷ lệ rủi ro 4% (có thể điều chỉnh)
+exports.riskPercentage = 0.04; // Tỷ lệ rủi ro 4% (có thể điều chỉnh)
 exports.rewardPercentage = 0.04; // Tỷ lệ lợi nhuận 8% (có thể điều chỉnh)
